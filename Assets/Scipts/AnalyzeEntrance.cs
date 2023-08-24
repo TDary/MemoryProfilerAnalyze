@@ -18,6 +18,7 @@ namespace MemoryAnalyze
             var args = new PackedMemorySnapshotArgs();
             args.source = UnityEditor.Profiling.Memory.Experimental.PackedMemorySnapshot.Load(snapFilePath);
             var heap = PackedMemorySnapshot.GetMemoryProfilerData(args);
+            heap.Initialize();
         }
     }
 }
