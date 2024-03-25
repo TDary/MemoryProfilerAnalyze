@@ -1,0 +1,10 @@
+{
+  "LocalFilePath": "E:\\MemoryFilePath",
+  "MsgRobot": {
+    "RobotUrl": "https://xz.wps.cn/api/v1/webhook/send?key=925366935f4fd8405101b739d3f527f1"
+  },
+  "UploadAPI": {
+    "DebugUrl": "http://10.11.81.198:5567/",
+    "ReleaseUrl": "http://10.11.67.163:5566/"
+  }
+}
