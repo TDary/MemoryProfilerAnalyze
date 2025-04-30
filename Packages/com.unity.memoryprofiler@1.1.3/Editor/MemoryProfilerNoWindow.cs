@@ -6,6 +6,8 @@ using System;
 using UnityEngine.UIElements;
 using Newtonsoft.Json;
 using System.Linq;
+using System.IO;
+using System.Threading.Tasks;
 
 [assembly: InternalsVisibleTo("Unity.MemoryProfiler.Editor.Tests")]
 namespace Unity.MemoryProfiler.Editor
@@ -56,6 +58,75 @@ namespace Unity.MemoryProfiler.Editor
             public int ChildCount { get; set; }
             public List<SubMemoryData> SubData { get; set; }
         }
+
+        internal class ManagedObjectData
+        {
+            public string Type { get; set; }
+            public string ItemName { get; set; }
+            public ulong AllocateSize { get; set; }   //当前节点名内存总占用
+            public List<string> Referencer { get; set; }
+
+            internal ManagedObjectData(int refMaxDepth)
+            {
+                Referencer = new List<string>(refMaxDepth);
+            }
+        }
+
+        class ManagedDateProcessor<T>
+        {
+            int threadCount;
+            Task[] tasks;
+            Action<List<T>, string, ManagedObjectData, StreamWriter, int, int> processDataAction;
+            StreamWriter[] writers;
+
+            internal ManagedDateProcessor(int threadCount, Action<List<T>, string, ManagedObjectData, StreamWriter, int, int> processDataAction, string filePath)
+            {
+                this.threadCount = threadCount;
+                this.tasks = new Task[threadCount];
+                this.processDataAction = processDataAction;
+                this.writers = new StreamWriter[threadCount];
+
+                string directory = Path.GetDirectoryName(filePath);
+                string fileName = Path.GetFileNameWithoutExtension(filePath);
+                string fileExtension = Path.GetExtension(filePath);
+
+                string uuid = Guid.NewGuid().ToString("N");
+                for (int i = 0; i < threadCount; i++)
+                {
+                    string subfilePath = Path.Combine(directory, $"{fileName}-{uuid}-{i}{fileExtension}");
+                    writers[i] = new StreamWriter(subfilePath, true);
+                }
+            }
+
+            internal void RunProcess(List<T> managedObjects, string objectType)
+            {
+                int chunkSize = managedObjects.Count / threadCount;
+
+                for (int i = 0; i < threadCount; i++)
+                {
+                    int start = i * chunkSize;
+                    int end = (i == threadCount - 1) ? managedObjects.Count : start + chunkSize;
+
+                    int fileIdx = i;
+                    ManagedObjectData managedObject = new ManagedObjectData(RefMaxDepth);
+
+                    tasks[i] = Task.Run(() => {
+                        processDataAction(managedObjects, objectType, managedObject, writers[fileIdx], start, end);
+                    });
+                }
+                Task.WaitAll(tasks);
+            }
+
+            internal void EndProcess()
+            {
+                foreach (var writer in writers)
+                {
+                    writer.Flush();
+                    writer.Close();
+                }
+            }
+
+        }
         #endregion
         bool m_WindowInitialized = false;
 
@@ -76,6 +147,9 @@ namespace Unity.MemoryProfiler.Editor
         ResidentMemorySummaryModelBuilder m_ResidentModelBuilder;
         UnityObjectsModelBuilder m_AllUnityObjectsModelBuilder;
         AllTrackedMemoryModelBuilder m_AllMemoryModelBuilder;
+        List<TreeViewItemData<AllTrackedMemoryModel.ItemData>> stackDatas;
+        static int RefMaxDepth = 5;   //最大引用深度
+        static int ManagedThreadCount = 4;
         public string BuildSummaryData()
         {
             try
@@ -267,6 +341,17 @@ namespace Unity.MemoryProfiler.Editor
                 Debug.LogError(e);
                 return null;
             }
+        }
+        public void BuildStackReferenceData(in string resFilePath)
+        {
+            var processor = new ManagedDateProcessor<TreeViewItemData<AllTrackedMemoryModel.ItemData>>(ManagedThreadCount, ProcessManagedDatas, resFilePath);
+            foreach (var parentItem in stackDatas)
+            {
+                var managedObjects = parentItem.children.ToList();
+
+                processor.RunProcess(managedObjects, parentItem.data.Name);
+            }
+            processor.EndProcess();
         }
         void GetUntrackedData(TreeViewItemData<AllTrackedMemoryModel.ItemData> node, ref List<AllMemoryClass> result)
         {
@@ -484,6 +569,7 @@ namespace Unity.MemoryProfiler.Editor
         }
         void GetManagedData(TreeViewItemData<AllTrackedMemoryModel.ItemData> node, ref List<AllMemoryClass> result)
         {
+            stackDatas = new List<TreeViewItemData<AllTrackedMemoryModel.ItemData>>();
             AllMemoryClass element = new AllMemoryClass();
             element.GroupName = node.data.Name;
             element.AllocateSize = node.data.Size.Committed;
@@ -522,6 +608,7 @@ namespace Unity.MemoryProfiler.Editor
                         sub.Count = 1;
                         sub.SubData = new List<SubMemoryData>();
                         subData.SubData.Add(sub);
+                        stackDatas.Add(child);
                         // getCount += 1;
                         // if (getCount>=20)
                         // {
@@ -534,6 +621,102 @@ namespace Unity.MemoryProfiler.Editor
             }
             result.Add(element);
         }
+        internal void ProcessManagedDatas(List<TreeViewItemData<AllTrackedMemoryModel.ItemData>> managedObjects, string managedType, ManagedObjectData managedObject, StreamWriter writer, int start, int end)
+        {
+            for (int i = start; i < end; i++)
+            {
+                var item = managedObjects[i];
+
+                managedObject.Type = managedType;
+                managedObject.ItemName = item.data.Name;
+                managedObject.AllocateSize = item.data.Size.Committed;
+                managedObject.Referencer.Clear();
+
+                if (FindFirstReferencer(item.data.Source, out var firstReferencer))
+                {
+                    string name = "";
+                    if (firstReferencer.isNative)
+                    {
+                        name = GetTypeNameOfNativeObject(firstReferencer);
+                    }
+
+                    if (firstReferencer.isManaged)
+                    {
+                        name = GetTypeNameOfManagedObject(firstReferencer);
+                    }
+                    managedObject.Referencer.Add(name);
+
+                    SetOtherDepthRef(firstReferencer, 1, RefMaxDepth, managedObject.Referencer);
+                }
+
+                writer.WriteLine(JsonConvert.SerializeObject(managedObject));
+            }
+        }
+
+        private bool FindFirstReferencer(CachedSnapshot.SourceIndex sourceIndex, out ObjectData firstReferencer)
+        {
+            var referencer = ObjectConnection.GetAllReferencingObjects(m_SnapshotDataService.Base, sourceIndex);
+            if (referencer.Length == 0)
+            {
+                firstReferencer = new ObjectData();
+                return false;
+            }
+
+            firstReferencer = referencer[0];
+            return true;
+        }
+
+        private bool FindFirstReferencer(ObjectData obj, out ObjectData firstReferencer)
+        {
+            var referencer = ObjectConnection.GetAllReferencingObjects(m_SnapshotDataService.Base, obj.displayObject);
+            if (referencer.Length == 0)
+            {
+                firstReferencer = new ObjectData();
+                return false;
+            }
+
+            firstReferencer = referencer[0];
+            return true;
+        }
+
+        private string GetTypeNameOfNativeObject(ObjectData obj)
+        {
+            return m_SnapshotDataService.Base.NativeTypes.TypeName[
+                m_SnapshotDataService.Base.NativeObjects.NativeTypeArrayIndex[
+                    obj.displayObject.nativeObjectIndex]];
+        }
+
+        private string GetTypeNameOfManagedObject(ObjectData obj)
+        {
+            return m_SnapshotDataService.Base.TypeDescriptions.TypeDescriptionName[
+                    obj.displayObject.managedTypeIndex];
+        }
+
+        void SetOtherDepthRef(ObjectData obj, int depth, int maxDepth, List<string> referencers)
+        {
+            if (depth >= maxDepth)
+            {
+                return;
+            }
+            string name = "";
+
+            if (FindFirstReferencer(obj, out var firstReferencer))
+            {
+                if (firstReferencer.isNative)
+                {
+                    name = GetTypeNameOfNativeObject(firstReferencer);
+                }
+
+                if (firstReferencer.isManaged)
+                {
+                    name = GetTypeNameOfManagedObject(firstReferencer);
+                }
+
+                referencers.Add(name);
+                SetOtherDepthRef(firstReferencer, depth + 1, maxDepth, referencers);
+            }
+        }
+
         void ProcessObjectSelected(int itemId, AllTrackedMemoryModel.ItemData itemData)
         {
 

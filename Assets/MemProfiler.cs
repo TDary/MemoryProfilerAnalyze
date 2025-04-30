@@ -14,7 +14,8 @@ namespace MemAnalyzer
         string SummaryJsonPath;
         string UnityObjectsJsonPath;
         string AllMemoryDatajsonPath;
-        private static MemProfiler _instance= null;
+        string FunReferenceDataPath;
+        private static MemProfiler _instance = null;
         static MemProfiler()
         {
             _instance = new MemProfiler();
@@ -38,7 +39,7 @@ namespace MemAnalyzer
         //public string Branch { get; set; }
 
 
-        public void AnalyzeStart(Dictionary<string,string> comd)
+        public void AnalyzeStart(Dictionary<string, string> comd)
         {
             Debug.Log("MemoryAnalyze Begin----");
             SnapFilePath = comd.ContainsKey("-SnapFilePath") ? comd["-SnapFilePath"] : "";
@@ -46,12 +47,13 @@ namespace MemAnalyzer
             SummaryJsonPath = comd.ContainsKey("-SummaryJson") ? comd["-SummaryJson"] : "";
             UnityObjectsJsonPath = comd.ContainsKey("-UnityObjectsJson") ? comd["-UnityObjectsJson"] : "";
             AllMemoryDatajsonPath = comd.ContainsKey("-AllMemoryDataJson") ? comd["-AllMemoryDataJson"] : "";
+            FunReferenceDataPath = comd.ContainsKey("-FunReferenceData") ? comd["-FunReferenceData"] : "";
             if (string.IsNullOrEmpty(UUid))
             {
                 Debug.LogError("UUID为空----");
                 return;
             }
-            else if (string.IsNullOrEmpty(SummaryJsonPath)) 
+            else if (string.IsNullOrEmpty(SummaryJsonPath))
             {
                 Debug.LogError("SummaryJsonPath为空----");
                 return;
@@ -68,7 +70,12 @@ namespace MemAnalyzer
             }
             else if (string.IsNullOrEmpty(SnapFilePath))
             {
-                Debug.LogError("SnapFilePath----");
+                Debug.LogError("SnapFilePath为空----");
+                return;
+            }
+            else if (string.IsNullOrEmpty(FunReferenceDataPath))
+            {
+                Debug.LogError("FunReferenceDataPath为空----");
                 return;
             }
             else
@@ -80,7 +87,7 @@ namespace MemAnalyzer
             Debug.Log($"SummaryJsonPath：{SummaryJsonPath}");
             Debug.Log($"UnityObjectsJsonPath：{UnityObjectsJsonPath}");
             Debug.Log($"AllMemoryDatajsonPath：{AllMemoryDatajsonPath}");
-
+            Debug.Log($"FunReferenceDataPath：{FunReferenceDataPath}");
             // 初始化MemoryProfiler模块
             mp_windows = new MemoryProfilerNoWindow();
             mp_windows.Init();
@@ -129,6 +136,7 @@ namespace MemAnalyzer
                 WriteResultFile(SummaryJsonPath, summaryJson);
                 WriteResultFile(UnityObjectsJsonPath, unityObjectsJson);
                 WriteResultFile(AllMemoryDatajsonPath, allMemoryJson);
+                mp_windows.BuildStackReferenceData(FunReferenceDataPath);
                 Debug.Log("解析Memory完毕----");
             }
             catch (Exception e)
