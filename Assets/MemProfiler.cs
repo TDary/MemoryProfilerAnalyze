@@ -45,7 +45,7 @@ namespace MemAnalyzer
             SnapFilePath = comd.ContainsKey("-SnapFilePath") ? comd["-SnapFilePath"] : "";
             UUid = comd.ContainsKey("-UUID") ? comd["-UUID"] : "";
             SummaryJsonPath = comd.ContainsKey("-SummaryJson") ? comd["-SummaryJson"] : "";
-            UnityObjectsJsonPath = comd.ContainsKey("-UnityObjectsJson") ? comd["-UnityObjectsJson"] : "";
+            UnityObjectsJsonPath = comd.ContainsKey("-UnityObjectsCsv") ? comd["-UnityObjectsCsv"] : "";
             AllMemoryDatajsonPath = comd.ContainsKey("-AllMemoryDataJson") ? comd["-AllMemoryDataJson"] : "";
             FunReferenceDataPath = comd.ContainsKey("-FunReferenceData") ? comd["-FunReferenceData"] : "";
             if (string.IsNullOrEmpty(UUid))
@@ -131,10 +131,9 @@ namespace MemAnalyzer
             try
             {
                 var summaryJson = mp_windows.BuildSummaryData();
-                var unityObjectsJson = mp_windows.BuildUnityObjectsData();
                 var allMemoryJson = mp_windows.BuildAllMemoryData();
                 WriteResultFile(SummaryJsonPath, summaryJson);
-                WriteResultFile(UnityObjectsJsonPath, unityObjectsJson);
+                mp_windows.BuildUnityObjectsData(UnityObjectsJsonPath);
                 WriteResultFile(AllMemoryDatajsonPath, allMemoryJson);
                 mp_windows.BuildStackReferenceData(FunReferenceDataPath);
                 Debug.Log("解析Memory完毕----");

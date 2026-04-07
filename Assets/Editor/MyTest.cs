@@ -24,7 +24,7 @@ public class MyTest : EditorWindow
     {
         if (GUILayout.Button("Run Test"))
         {
-            string filePath = "D:\\Test\\5449d8f2971946f588561077dbf7b12f.snap";
+            string filePath = "D:\\Test\\jxsj4_2026-04-07_15-31-46.snap";
             memPNW = new MemoryProfilerNoWindow();
             memPNW.Init();
             memPNW.LoadedSnapshot(filePath);
@@ -40,6 +40,19 @@ public class MyTest : EditorWindow
             string allMemoryJson = memPNW.BuildAllMemoryData();
             WriteResultFile(AllMemoryDatajsonPath, allMemoryJson);
             memPNW.BuildStackReferenceData(stackDataPath);
+        }
+        if (GUILayout.Button("GenerateUnityObjectsData"))
+        {
+            string unityObjectsJsonPath = "D:/unityObjects.csv";
+            memPNW.BuildUnityObjectsData(unityObjectsJsonPath);
+            Debug.Log("生成UnityObjectsData完毕");
+        }
+        if(GUILayout.Button("UnloadSnap"))
+        {
+            memPNW = null;
+            Resources.UnloadUnusedAssets();
+            GC.Collect();
+            Debug.Log("UnloadSnap完毕");
         }
     }
 
