@@ -152,7 +152,7 @@ namespace Unity.MemoryProfiler.Editor
         static int RefMaxDepth = 5;   //最大引用深度
         static int ManagedThreadCount = 4;
 
-        public void BuildAllData(string summaryFilePath, string unityObjFilePath, string allMemoryFilePath, string stackRefFilePath)
+        public void BuildAllData(string summaryFilePath, string unityObjFilePath, string allMemoryFilePath, string stackRefFilePath=null)
         {
             // 先删除一下之前残留的旧数据（如果有的话）
             if (File.Exists(summaryFilePath))
@@ -229,13 +229,9 @@ namespace Unity.MemoryProfiler.Editor
                     ProcessObjectSelected);
                 var almodel = m_AllMemoryModelBuilder.Build(m_SnapshotDataService.Base, args);
                 #endregion
-                // Unload 释放内存
-                m_SnapshotDataService.Base.Dispose();
-                m_SnapshotDataService.UnloadAll();
-                m_SnapshotDataService.Dispose();
                 // 处理数据并输出csv
                 #region SummaryJsonWrite
-                SummaryWs.WriteLine("GroupName,ItemName,AllocatedSize");
+                SummaryWs.WriteLine("GroupName,ResourceItemName,AllocatedSize");
                 foreach (var row in summaryModel.Rows) //Allocated Memory Distribution
                 {
                     SummaryWs.WriteLine($"{summaryModel.Title},{row.Name},{row.BaseSize.Committed}");
@@ -256,7 +252,7 @@ namespace Unity.MemoryProfiler.Editor
                 SummaryWs.Dispose();
                 #endregion
                 #region UnityObjectsCsvWrite
-                uosw.WriteLine("UnityObjectType,Name,InstanceId,AllocatedSize,NativeSize,ManagedSize,GraphicsSize");
+                uosw.WriteLine("UnityObjectType,ResourceItemName,InstanceId,AllocatedSize,NativeSize,ManagedSize,GraphicsSize");
                 var UorootNodes = utojsmodel.RootNodes;
                 if (UorootNodes.Count <= 0)
                     throw new Exception("UnityObjects has no data.");
@@ -280,65 +276,40 @@ namespace Unity.MemoryProfiler.Editor
                 uofs.Close();
                 uofs.Dispose();
                 #endregion
+                // Unload 释放内存
+                m_SnapshotDataService.Base.Dispose();
+                m_SnapshotDataService.UnloadAll();
+                m_SnapshotDataService.Dispose();
                 #region AllMemoryDataCsvWrite
+                alsw.WriteLine("GroupName,SubGroupName,ResourceItemName,Size");
                 var AMrootNodes = almodel.RootNodes;
                 if (AMrootNodes.Count <= 0)
                     throw new Exception("AllMemoryData has no data.");
-                int alcount = 0;
                 foreach (var node in AMrootNodes)
                 {
                     if (node.data.Name == "Managed")
                     {
-                        alcount += 1;
                         GetManagedData(node, alsw);
-                        if (alcount != AMrootNodes.Count)
-                        {
-                            alsw.Write(",");
-                        }
                     }
                     else if (node.data.Name == "Untracked*")
                     {
-                        alcount += 1;
                         GetUntrackedData(node, alsw);
-                        if (alcount != AMrootNodes.Count)
-                        {
-                            alsw.Write(",");
-                        }
                     }
                     else if (node.data.Name == "Graphics (Estimated)")
                     {
-                        alcount += 1;
                         GetGraphicsData(node, alsw);
-                        if (alcount != AMrootNodes.Count)
-                        {
-                            alsw.Write(",");
-                        }
                     }
                     else if (node.data.Name == "Native")
                     {
-                        alcount += 1;
                         GetNativeData(node, alsw);
-                        if (alcount != AMrootNodes.Count)
-                        {
-                            alsw.Write(",");
-                        }
                     }
                     else if (node.data.Name == "Executables & Mapped")
                     {
-                        alcount += 1;
                         GetExecutablesMappedData(node, alsw);
-                        if (alcount != AMrootNodes.Count)
-                        {
-                            alsw.Write(",");
-                        }
                     }
+                    else
                     {
-                        alcount += 1;
                         GetOtherData(node, alsw);
-                        if (alcount != AMrootNodes.Count)
-                        {
-                            alsw.Write(",");
-                        }
                     }
                 }
                 alsw.Close();
@@ -829,287 +800,86 @@ namespace Unity.MemoryProfiler.Editor
         }
         void GetUntrackedData(TreeViewItemData<AllTrackedMemoryModel.ItemData> node, StreamWriter fs)
         {
-            AllMemoryClass element = new AllMemoryClass();
-            element.GroupName = node.data.Name;
-            element.AllocateSize = node.data.Size.Committed;
-            element.Count = 1;
-            element.ChildCount = node.data.ChildCount;
-            element.SubData = new List<SubMemoryData>();
             foreach (var childNode in node.children)
             {
-                SubMemoryData subData = new SubMemoryData();
-                subData.ItemName = childNode.data.Name;
-                subData.AllocateSize = childNode.data.Size.Committed;
-                subData.Count = 1;
-                subData.ChildCount = childNode.data.ChildCount;
-                subData.SubData = new List<SubMemoryData>();
-                element.SubData.Add(subData);
+                fs.WriteLine($"{node.data.Name},{childNode.data.Name},<No Item>,{childNode.data.Size.Committed}");
             }
-            fs.Write(JsonConvert.SerializeObject(element));
         }
         void GetExecutablesMappedData(TreeViewItemData<AllTrackedMemoryModel.ItemData> node, StreamWriter fs)
         {
-            var data = node.data;
-            AllMemoryClass element = new AllMemoryClass();
-            element.GroupName = data.Name;
-            element.AllocateSize = data.Size.Committed;
-            element.ChildCount = data.ChildCount;
-            element.Count = 1;
-            element.SubData = new List<SubMemoryData>();
             if (node.data.ChildCount == 0)
             {
-                fs.Write(JsonConvert.SerializeObject(element));
+                return;
             }
             else
             {
                 foreach (var subItemData in node.children)
                 {
-                    SubMemoryData sub = new SubMemoryData();
-                    sub.Count = 1;
-                    sub.AllocateSize = subItemData.data.Size.Committed;
-                    sub.ChildCount = subItemData.data.ChildCount;
-                    sub.SubData = new List<SubMemoryData>();
-                    sub.ItemName = subItemData.data.Name;
-                    element.SubData.Add(sub);
+                    fs.WriteLine($"{node.data.Name},{subItemData.data.Name},<No Item>,{subItemData.data.Size.Committed}");
                 }
-                fs.Write(JsonConvert.SerializeObject(element));
             }
         }
         void GetNativeData(TreeViewItemData<AllTrackedMemoryModel.ItemData> node, StreamWriter fs)
         {
-            var data = node.data;
-            AllMemoryClass element = new AllMemoryClass();
-            element.GroupName = data.Name;
-            element.AllocateSize = data.Size.Committed;
-            element.ChildCount = data.ChildCount;
-            element.Count = 1;
-            element.SubData = new List<SubMemoryData>();
             foreach (var subItemData in node.children)
             {
-                SubMemoryData sub = new SubMemoryData();
-                sub.Count = 1;
-                sub.AllocateSize = subItemData.data.Size.Committed;
-                sub.ChildCount = subItemData.data.ChildCount;
-                sub.SubData = new List<SubMemoryData>();
-                sub.ItemName = subItemData.data.Name;
-                if (sub.ChildCount != 0)
+                if (subItemData.data.ChildCount != 0)
                 {
                     foreach (var item in subItemData.children)
                     {
-                        SubMemoryData su = new SubMemoryData();
-                        su.Count = 1;
-                        su.AllocateSize = item.data.Size.Committed;
-                        su.ChildCount = item.data.ChildCount;
-                        su.SubData = new List<SubMemoryData>();
-                        su.ItemName = item.data.Name;
-                        if (item.data.Name == "Managers")
-                        {
-                            foreach (var subItem in item.children)
-                            {
-                                if (subItem.data.Name == "IL2CPPMemoryAllocator")
-                                {
-                                    SubMemoryData il2cppData = new SubMemoryData();
-                                    il2cppData.Count = 1;
-                                    il2cppData.AllocateSize = subItem.data.Size.Committed;
-                                    il2cppData.SubData = new List<SubMemoryData>();
-                                    il2cppData.ItemName = subItem.data.Name;
-                                    il2cppData.ChildCount = subItem.data.ChildCount;
-                                    su.SubData.Add(il2cppData);
-                                    break;
-                                }
-                            }
-                        }
-                        else if (item.data.Name == "UnsafeUtility")
-                        {
-                            foreach (var subItem in item.children)
-                            {
-                                if (subItem.data.Name == "Malloc(Persistent)")
-                                {
-                                    SubMemoryData Malloc = new SubMemoryData();
-                                    Malloc.Count = 1;
-                                    Malloc.AllocateSize = subItem.data.Size.Committed;
-                                    Malloc.SubData = new List<SubMemoryData>();
-                                    Malloc.ItemName = subItem.data.Name;
-                                    Malloc.ChildCount = subItem.data.ChildCount;
-                                    su.SubData.Add(Malloc);
-                                    break;
-                                }
-                            }
-                        }
-                        else if (item.data.Name == "Rendering") //Rendering
-                        {
-                            foreach (var subItem in item.children)
-                            {
-                                if (subItem.data.Name == "ComputeBuffers")
-                                {
-                                    SubMemoryData ComputeBu = new SubMemoryData();
-                                    ComputeBu.Count = 1;
-                                    ComputeBu.AllocateSize = subItem.data.Size.Committed;
-                                    ComputeBu.SubData = new List<SubMemoryData>();
-                                    ComputeBu.ItemName = subItem.data.Name;
-                                    ComputeBu.ChildCount = subItem.data.ChildCount;
-                                    su.SubData.Add(ComputeBu);
-                                    break;
-                                }
-                            }
-                        }
-                        sub.SubData.Add(su);
+                        fs.WriteLine($"{node.data.Name},{subItemData.data.Name},{item.data.Name},{item.data.Size.Committed}");  // 这里子项的子项只输出一层，避免数据过多
                     }
                 }
-                element.SubData.Add(sub);
             }
-            fs.Write(JsonConvert.SerializeObject(element));
         }
         void GetGraphicsData(TreeViewItemData<AllTrackedMemoryModel.ItemData> node, StreamWriter fs)
         {
-            // 导出 gfx 和 computerbuffers
-            var data = node.data;
-            AllMemoryClass element = new AllMemoryClass();
-            element.GroupName = data.Name;
-            element.Count = 1;
-            element.AllocateSize = data.Size.Committed;
-            element.ChildCount = data.ChildCount;
-            element.SubData = new List<SubMemoryData>();
+            // 导出 gfxData
             if (node.data.ChildCount != 0)
             {
                 foreach (var item in node.children)
                 {
-                    if (item.data.Name == "")  //获取数据 "Rendering:ComputeBuffers"
+                    if (item.data.Name == "")
                     {
-                        SubMemoryData noNameData = new SubMemoryData();
-                        noNameData.Count = 1;
-                        noNameData.SubData = new List<SubMemoryData>();
-                        noNameData.AllocateSize = item.data.Size.Committed;
-                        noNameData.ChildCount = item.data.ChildCount;
-                        noNameData.ItemName = "<No Name>";
-                        SubMemoryData elementComputeBuffer = new SubMemoryData();
-                        int count = 0;
                         foreach (var itemData in item.children)
                         {
-                            if (itemData.data.Name == "Rendering:ComputeBuffers")
-                            {
-                                elementComputeBuffer.ItemName = itemData.data.Name;
-                                elementComputeBuffer.AllocateSize += itemData.data.Size.Committed;
-                                count += 1;
-                            }
-                            else
-                            {
-                                SubMemoryData idata = new SubMemoryData();
-                                idata.Count = 1;
-                                idata.SubData = new List<SubMemoryData>();
-                                idata.AllocateSize = itemData.data.Size.Committed;
-                                idata.ChildCount = itemData.data.ChildCount;
-                                idata.ItemName = itemData.data.Name;
-                                noNameData.SubData.Add(idata);
-                            }
+                            fs.WriteLine($"{node.data.Name},<No Name>,{itemData.data.Name},{itemData.data.Size.Committed}");
                         }
-                        if (count != 0)
-                        {
-                            elementComputeBuffer.Count = count;
-                            elementComputeBuffer.ChildCount = 0;
-                            elementComputeBuffer.SubData = new List<SubMemoryData>();
-                            noNameData.SubData.Add(elementComputeBuffer);
-                        }
-                        element.SubData.Add(noNameData);
                     }
                     else
                     {
-                        SubMemoryData su = new SubMemoryData();
-                        su.Count = 1;
-                        su.SubData = new List<SubMemoryData>();
-                        su.AllocateSize = item.data.Size.Committed;
-                        su.ItemName = item.data.Name;
-                        su.ChildCount = item.data.ChildCount;
                         foreach (var itemChild in item.children)
                         {
-                            SubMemoryData ic = new SubMemoryData();
-                            ic.Count = 1;
-                            ic.SubData = new List<SubMemoryData>();
-                            ic.AllocateSize = itemChild.data.Size.Committed;
-                            ic.ItemName = itemChild.data.Name;
-                            ic.ChildCount = itemChild.data.ChildCount;
-                            su.SubData.Add(ic);
+                            fs.WriteLine($"{node.data.Name},{item.data.Name},{itemChild.data.Name},{itemChild.data.Size.Committed}");
                         }
-                        element.SubData.Add(su);
                     }
                 }
             }
-            fs.Write(JsonConvert.SerializeObject(element));
         }
         void GetManagedData(TreeViewItemData<AllTrackedMemoryModel.ItemData> node, StreamWriter fs)
         {
-            stackDatas = new List<TreeViewItemData<AllTrackedMemoryModel.ItemData>>();
-            AllMemoryClass element = new AllMemoryClass();
-            element.GroupName = node.data.Name;
-            element.AllocateSize = node.data.Size.Committed;
-            element.Count = 1;
-            element.ChildCount = node.data.ChildCount;
-            element.SubData = new List<SubMemoryData>();
             foreach (var nodeChild in node.children)
             {
                 if (nodeChild.data.Name == "Reserved")
                 {
                     var data = nodeChild.data;
-                    SubMemoryData subData = new SubMemoryData();
-                    subData.ItemName = data.Name;
-                    subData.AllocateSize = data.Size.Committed;
-                    subData.ChildCount = data.ChildCount;
-                    subData.Count = 1;
-                    subData.SubData = new List<SubMemoryData>();
-                    element.SubData.Add(subData);
+                    fs.WriteLine($"{node.data.Name},Reserved,<No Item>,{data.Size.Committed}");
                 }
                 else if (nodeChild.data.Name == "Managed Objects")
                 {
-                    var data = nodeChild.data;
-                    SubMemoryData subData = new SubMemoryData();
-                    subData.ItemName = data.Name;
-                    subData.AllocateSize = data.Size.Committed;
-                    subData.ChildCount = data.ChildCount;
-                    subData.SubData = new List<SubMemoryData>();
-                    //提炼Top50子元素数据
-                    int getCount = 0;
                     foreach (var child in nodeChild.children)
                     {
-                        SubMemoryData sub = new SubMemoryData();
-                        sub.ItemName = child.data.Name;
-                        sub.AllocateSize = child.data.Size.Committed;
-                        sub.ChildCount = child.data.ChildCount;
-                        sub.Count = 1;
-                        sub.SubData = new List<SubMemoryData>();
-                        subData.SubData.Add(sub);
-                        stackDatas.Add(child);
-                        getCount += 1;
-                        if (getCount >= 50)
-                        {
-                            break;
-                        }
+                        fs.WriteLine($"{node.data.Name},Managed Objects,{child.data.Name},{child.data.Size.Committed}");
                     }
-                    subData.Count = 1;
-                    element.SubData.Add(subData);
                 }
             }
-            fs.Write(JsonConvert.SerializeObject(element));
         }
         void GetOtherData(TreeViewItemData<AllTrackedMemoryModel.ItemData> node, StreamWriter fs)
         {
-            var data = node.data;
-            AllMemoryClass element = new AllMemoryClass();
-            element.GroupName = data.Name;
-            element.Count = 1;
-            element.AllocateSize = data.Size.Committed;
-            element.ChildCount = data.ChildCount;
-            element.SubData = new List<SubMemoryData>();
             foreach (var subItemData in node.children)
             {
-                SubMemoryData sub = new SubMemoryData();
-                sub.Count = 1;
-                sub.AllocateSize = subItemData.data.Size.Committed;
-                sub.ChildCount = subItemData.data.ChildCount;
-                sub.SubData = new List<SubMemoryData>();
-                sub.ItemName = subItemData.data.Name;
-                element.SubData.Add(sub);
+                fs.WriteLine($"{node.data.Name},{subItemData.data.Name},<No Item>,{subItemData.data.Size.Committed}");
             }
-            fs.Write(JsonConvert.SerializeObject(element));
         }
         internal void ProcessManagedDatas(List<TreeViewItemData<AllTrackedMemoryModel.ItemData>> managedObjects, string managedType, ManagedObjectData managedObject, StreamWriter writer, int start, int end)
         {

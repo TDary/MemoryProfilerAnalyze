@@ -11,9 +11,9 @@ namespace MemAnalyzer
     {
         string UUid;
         string SnapFilePath;
-        string SummaryJsonPath;
-        string UnityObjectsJsonPath;
-        string AllMemoryDatajsonPath;
+        string SummaryCsvPath;
+        string UnityObjectsCsvPath;
+        string AllMemoryDataCsvPath;
         string FunReferenceDataPath;
         private static MemProfiler _instance = null;
         static MemProfiler()
@@ -44,28 +44,28 @@ namespace MemAnalyzer
             Debug.Log("MemoryAnalyze Begin----");
             SnapFilePath = comd.ContainsKey("-SnapFilePath") ? comd["-SnapFilePath"] : "";
             UUid = comd.ContainsKey("-UUID") ? comd["-UUID"] : "";
-            SummaryJsonPath = comd.ContainsKey("-SummaryJson") ? comd["-SummaryJson"] : "";
-            UnityObjectsJsonPath = comd.ContainsKey("-UnityObjectsCsv") ? comd["-UnityObjectsCsv"] : "";
-            AllMemoryDatajsonPath = comd.ContainsKey("-AllMemoryDataJson") ? comd["-AllMemoryDataJson"] : "";
+            SummaryCsvPath = comd.ContainsKey("-SummaryCsv") ? comd["-SummaryCsv"] : "";
+            UnityObjectsCsvPath = comd.ContainsKey("-UnityObjectsCsv") ? comd["-UnityObjectsCsv"] : "";
+            AllMemoryDataCsvPath = comd.ContainsKey("-AllMemoryDataCsv") ? comd["-AllMemoryDataCsv"] : "";
             FunReferenceDataPath = comd.ContainsKey("-FunReferenceData") ? comd["-FunReferenceData"] : "";
             if (string.IsNullOrEmpty(UUid))
             {
                 Debug.LogError("UUID为空----");
                 return;
             }
-            else if (string.IsNullOrEmpty(SummaryJsonPath))
+            else if (string.IsNullOrEmpty(SummaryCsvPath))
             {
-                Debug.LogError("SummaryJsonPath为空----");
+                Debug.LogError("SummaryCsvPath为空----");
                 return;
             }
-            else if (string.IsNullOrEmpty(UnityObjectsJsonPath))
+            else if (string.IsNullOrEmpty(UnityObjectsCsvPath))
             {
-                Debug.LogError("UnityObjectsJsonPath为空----");
+                Debug.LogError("UnityObjectsCsvPath为空----");
                 return;
             }
-            else if (string.IsNullOrEmpty(AllMemoryDatajsonPath))
+            else if (string.IsNullOrEmpty(AllMemoryDataCsvPath))
             {
-                Debug.LogError("AllMemoryDatajsonPath为空----");
+                Debug.LogError("AllMemoryDataCsvPath为空----");
                 return;
             }
             else if (string.IsNullOrEmpty(SnapFilePath))
@@ -84,9 +84,9 @@ namespace MemAnalyzer
             }
             Debug.Log($"SnapFilePath：{SnapFilePath}");
             Debug.Log($"UUID：{UUid}");
-            Debug.Log($"SummaryJsonPath：{SummaryJsonPath}");
-            Debug.Log($"UnityObjectsJsonPath：{UnityObjectsJsonPath}");
-            Debug.Log($"AllMemoryDatajsonPath：{AllMemoryDatajsonPath}");
+            Debug.Log($"SummaryCsvPath：{SummaryCsvPath}");
+            Debug.Log($"UnityObjectsCsvPath：{UnityObjectsCsvPath}");
+            Debug.Log($"AllMemoryDataCsvPath：{AllMemoryDataCsvPath}");
             Debug.Log($"FunReferenceDataPath：{FunReferenceDataPath}");
             // 初始化MemoryProfiler模块
             mp_windows = new MemoryProfilerNoWindow();
@@ -130,12 +130,8 @@ namespace MemAnalyzer
             Debug.Log("输出结果数据----");
             try
             {
-                var summaryJson = mp_windows.BuildSummaryData();
-                var allMemoryJson = mp_windows.BuildAllMemoryData();
-                WriteResultFile(SummaryJsonPath, summaryJson);
-                mp_windows.BuildUnityObjectsData(UnityObjectsJsonPath);
-                WriteResultFile(AllMemoryDatajsonPath, allMemoryJson);
-                mp_windows.BuildStackReferenceData(FunReferenceDataPath);
+                mp_windows.BuildAllData(SummaryCsvPath, UnityObjectsCsvPath, AllMemoryDataCsvPath);
+                // mp_windows.BuildStackReferenceData(FunReferenceDataPath);
                 Debug.Log("解析Memory完毕----");
             }
             catch (Exception e)

@@ -47,6 +47,14 @@ public class MyTest : EditorWindow
             memPNW.BuildUnityObjectsData(unityObjectsJsonPath);
             Debug.Log("生成UnityObjectsData完毕");
         }
+        if (GUILayout.Button("GenerateAllData"))
+        {
+            string SummaryDataCsvPath = "D:/SummaryData.csv";
+            string AllMemoryDataCsvPath = "D:/AllMemoryData.csv";
+            string UnityObjectsDataCsvPath = "D:/UnityObjects.csv";
+            memPNW.BuildAllData(SummaryDataCsvPath, UnityObjectsDataCsvPath, AllMemoryDataCsvPath);
+            Debug.Log("生成AllData完毕");
+        }
         if(GUILayout.Button("UnloadSnap"))
         {
             memPNW = null;
