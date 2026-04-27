@@ -24,7 +24,7 @@ public class MyTest : EditorWindow
     {
         if (GUILayout.Button("Run Test"))
         {
-            string filePath = "D:\\Test\\jxsj4_2026-04-07_15-31-46.snap";
+            string filePath = "D:\\TestSnap\\Test.snap";
             memPNW = new MemoryProfilerNoWindow();
             memPNW.Init();
             memPNW.LoadedSnapshot(filePath);
@@ -54,6 +54,14 @@ public class MyTest : EditorWindow
             string UnityObjectsDataCsvPath = "D:/UnityObjects.csv";
             memPNW.BuildAllData(SummaryDataCsvPath, UnityObjectsDataCsvPath, AllMemoryDataCsvPath);
             Debug.Log("Éú³ÉAllDataÍê±Ï");
+        }
+
+        if (GUILayout.Button("GenerateAllResultData"))
+        {
+            var SummaryCsvPath = "D:/SummaryData.csv";
+            var AllMemoryDataCsvPath = "D:/AllMemoryData.csv";
+            string UnityObjectsCsvPath = "D:/UnityObjects.csv";
+            memPNW.BuildAllData(SummaryCsvPath, UnityObjectsCsvPath, AllMemoryDataCsvPath);
         }
         if(GUILayout.Button("UnloadSnap"))
         {

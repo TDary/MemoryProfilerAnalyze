@@ -47,7 +47,7 @@ namespace MemAnalyzer
             SummaryCsvPath = comd.ContainsKey("-SummaryCsv") ? comd["-SummaryCsv"] : "";
             UnityObjectsCsvPath = comd.ContainsKey("-UnityObjectsCsv") ? comd["-UnityObjectsCsv"] : "";
             AllMemoryDataCsvPath = comd.ContainsKey("-AllMemoryDataCsv") ? comd["-AllMemoryDataCsv"] : "";
-            FunReferenceDataPath = comd.ContainsKey("-FunReferenceData") ? comd["-FunReferenceData"] : "";
+            // FunReferenceDataPath = comd.ContainsKey("-FunReferenceData") ? comd["-FunReferenceData"] : "";
             if (string.IsNullOrEmpty(UUid))
             {
                 Debug.LogError("UUID为空----");
@@ -73,11 +73,11 @@ namespace MemAnalyzer
                 Debug.LogError("SnapFilePath为空----");
                 return;
             }
-            else if (string.IsNullOrEmpty(FunReferenceDataPath))
-            {
-                Debug.LogError("FunReferenceDataPath为空----");
-                return;
-            }
+            // else if (string.IsNullOrEmpty(FunReferenceDataPath))
+            // {
+            //     Debug.LogError("FunReferenceDataPath为空----");
+            //     return;
+            // }
             else
             {
                 //
@@ -87,7 +87,7 @@ namespace MemAnalyzer
             Debug.Log($"SummaryCsvPath：{SummaryCsvPath}");
             Debug.Log($"UnityObjectsCsvPath：{UnityObjectsCsvPath}");
             Debug.Log($"AllMemoryDataCsvPath：{AllMemoryDataCsvPath}");
-            Debug.Log($"FunReferenceDataPath：{FunReferenceDataPath}");
+            //Debug.Log($"FunReferenceDataPath：{FunReferenceDataPath}");
             // 初始化MemoryProfiler模块
             mp_windows = new MemoryProfilerNoWindow();
             mp_windows.Init();
@@ -105,14 +105,22 @@ namespace MemAnalyzer
 
             mp_windows.LoadedSnapshot(SnapFilePath);
 
-            while (true)
+            int loadTimeoutMs = 600000; // 10分钟超时
+            int waitedMs = 0;
+            while (waitedMs < loadTimeoutMs)
             {
                 if (mp_windows.IsLoadSuccess())
                 {
                     //Load完成，进行获取数据
                     break;
                 }
-                Thread.Sleep(1);
+                Thread.Sleep(100);
+                waitedMs += 100;
+            }
+            if (!mp_windows.IsLoadSuccess())
+            {
+                Debug.LogError($"加载Snapshot超时（{loadTimeoutMs / 1000}秒），放弃解析----");
+                return;
             }
             GetParseData();
         }

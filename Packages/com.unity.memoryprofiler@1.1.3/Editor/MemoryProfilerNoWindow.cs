@@ -576,7 +576,7 @@ namespace Unity.MemoryProfiler.Editor
             element.SubData.Add(subData1);
             SubMemoryData subData2 = new SubMemoryData();
             subData2.ItemName = "Other Dll";
-            subData2.AllocateSize = data.Size.Committed - dxSize;
+            subData2.AllocateSize = data.Size.Committed >= dxSize ? data.Size.Committed - dxSize : 0;
             subData2.Count = 1;
             subData2.ChildCount = data.ChildCount - dxCaches.Count;
             subData2.SubData = new List<SubMemoryData>();
